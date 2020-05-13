@@ -11,7 +11,7 @@ Value function surface obtained by running monte-carlo agent for 1 million episo
 
 ## TD Learning (SARSA Lambda)
 
-Plot of mean squared error vs lambda using SARSA Lambda agent. Agent evaluated for 10000 episodes.
+Agent evaluated for 10000 episodes.
 ![](plots/sarsa_lambda.png)
 
 Plot of mean squared error vs episodes.
@@ -19,7 +19,7 @@ Plot of mean squared error vs episodes.
 
 ## Function Approximation
 
-Plot of mean squared error vs lambda using SARSA Lambda with Function Approximation agent. Agent evaluated for 10000 episodes.
+Agent evaluated for 10000 episodes.
 ![](plots/sarsa_fa.png)
 
 Plot of mean squared error vs episodes.
