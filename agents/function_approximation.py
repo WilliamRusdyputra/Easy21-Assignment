@@ -4,18 +4,19 @@ import matplotlib.pyplot as plt
 from env import Environment
 
 
-class SarsaAgent:
+class SarsaApproxAgent:
     def __init__(self):
         self.actions = [0, 1]
-        self.value_steps = np.zeros([11, 22])
-        self.action_value_function = np.zeros([11, 22, len(self.actions)])
-        self.action_value_steps = np.zeros([11, 22, len(self.actions)])
-        self.n_zero = 100
+        self.feature_vector = np.zeros([3, 6, 2])
+        self.weights = np.random.randn(3 * 6 * 2)
+        self.cuboid = [[[1, 4], [4, 7], [7, 10]], [[1, 6], [4, 9], [7, 12], [10, 15], [13, 18], [16, 21]], [[0, 1]]]
+        self.step_size = 0.01
+        self.epsilon = 0.05
 
     def train(self, my_lambda, true_star_value):
         environment = Environment()
         terminated = False
-        eligibility = np.zeros([11, 22, len(self.actions)])
+        eligibility = np.zeros([36])
 
         # initial state where both player and dealer draw black card
         card = round(random.uniform(1, 10))
@@ -30,9 +31,6 @@ class SarsaAgent:
         while not terminated:
             current_action_index = 1 if current_action == 'hit' else 0
 
-            self.value_steps[dealer_card][card] += 1
-            self.action_value_steps[dealer_card][card][current_action_index] += 1
-
             states.append(current_state)
             actions.append(current_action_index)
 
@@ -46,25 +44,16 @@ class SarsaAgent:
             action_prime = None
             if reward != 2:
                 current_reward = reward
-                delta = current_reward + (0 - self.action_value_function[dealer_card][old_card][current_action_index])
+                delta = current_reward + (0 - self.do_approximation([dealer_card, old_card], current_action_index))
             else:
                 action_prime = self.epsilon_action([dealer_card, card])
                 action_prime_index = 1 if action_prime == 'hit' else 0
-                delta = current_reward + (self.action_value_function[dealer_card][card][action_prime_index] -
-                                          self.action_value_function[dealer_card][old_card][current_action_index])
+                delta = current_reward + (self.do_approximation([dealer_card, card], action_prime_index) -
+                                          self.do_approximation([dealer_card, old_card], current_action_index))
 
-            eligibility[dealer_card][old_card][current_action_index] += 1
+            eligibility = (my_lambda * eligibility + self.feature_vector.flatten())
 
-            # loop through all Q state-action pairs in the episode
-            for i in range(len(states)):
-                current_dealer_card, current_card = states[i][0], states[i][1]
-                current_action_value_step = self.action_value_steps[current_dealer_card][current_card][actions[i]]
-                current_eligibility = eligibility[current_dealer_card][current_card][actions[i]]
-
-                self.action_value_function[current_dealer_card][current_card][actions[i]] += (
-                        (1 / current_action_value_step) * delta * current_eligibility)
-
-                eligibility[current_dealer_card][current_card][actions[i]] = my_lambda * current_eligibility
+            self.weights += self.step_size * delta * eligibility
 
             current_state = [dealer_card, card]
             current_action = action_prime
@@ -75,25 +64,42 @@ class SarsaAgent:
         mse = self.calculate_mse(true_star_value)
         return mse
 
-    def epsilon_action(self, state):
-        epsilon = self.n_zero / (self.n_zero + self.value_steps[state[0]][state[1]])
-
-        greedy_action = np.argmax(self.action_value_function[state[0]][state[1]])
+    def epsilon_action(self, approximate_value):
+        greedy_action = np.argmax(approximate_value)
         greedy_action = 'hit' if greedy_action == 1 else 'stick'
 
         explore_action = np.random.choice(self.actions)
         explore_action = 'hit' if explore_action == 1 else 'stick'
 
         prob = np.random.random()
-        if prob <= epsilon:
+        if prob <= self.epsilon:
             return explore_action
         else:
             return greedy_action
 
+    def compute_feature_vector(self, state, action):
+        # reset the feature vector
+        self.feature_vector = np.zeros([3, 6, 2])
+
+        dealer_card, card = state[0], state[1]
+
+        dealer_feature_space = [x[0] <= dealer_card <= x[1] for x in self.cuboid[0]]
+        player_feature_space = [x[0] <= card <= x[1] for x in self.cuboid[1]]
+
+        for i in range(3):
+            if dealer_feature_space[i]:
+                for j in range(6):
+                    if player_feature_space[j]:
+                        self.feature_vector[i][j][action] = 1
+
+    def do_approximation(self, state, action):
+        self.compute_feature_vector(state, action)
+        result = np.dot(self.feature_vector.flatten(), self.weights)
+
+        return result
+
     def reset(self):
-        self.value_steps = np.zeros([11, 22])
-        self.action_value_function = np.zeros([11, 22, len(self.actions)])
-        self.action_value_steps = np.zeros([11, 22, len(self.actions)])
+        self.weights = np.random.randn(3 * 6 * 2)
 
     def calculate_mse(self, true_star_value):
         mse = 0
@@ -102,7 +108,7 @@ class SarsaAgent:
         for i in range(1, 11):
             for j in range(1, 22):
                 for action in range(2):
-                    mse += np.square(self.action_value_function[i][j][action] - true_star_value[i][j][action])
+                    mse += np.square(self.do_approximation([i, j], action) - true_star_value[i][j][action])
 
         return mse / (10 * 21 * 2)
 
