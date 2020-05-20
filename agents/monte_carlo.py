@@ -49,18 +49,30 @@ class MonteCarloAgent:
 
         average_reward = np.sum(rewards)
 
+        visited_states = []
+
         for i in range(len(states)):
             card, dealer_card = states[i][1], states[i][0]
-            self.action_value_steps[dealer_card][card][actions[i]] += 1
 
-            current_action_value = self.action_value_function[dealer_card][card][actions[i]]
-            current_action_value_step = self.action_value_steps[dealer_card][card][actions[i]]
+            if self.check_visited(visited_states, card, dealer_card):
+                self.action_value_steps[dealer_card][card][actions[i]] += 1
 
-            # Q(St, At) = Q(St, At) + 1 / N(St, At) * (Gt - Q(St, At))
-            new_action_value = (current_action_value + (1 / current_action_value_step) *
-                                (average_reward - current_action_value))
+                current_action_value = self.action_value_function[dealer_card][card][actions[i]]
+                current_action_value_step = self.action_value_steps[dealer_card][card][actions[i]]
 
-            self.action_value_function[dealer_card][card][actions[i]] = new_action_value
+                # Q(St, At) = Q(St, At) + 1 / N(St, At) * (Gt - Q(St, At))
+                new_action_value = (current_action_value + (1 / current_action_value_step) *
+                                    (average_reward - current_action_value))
+
+                self.action_value_function[dealer_card][card][actions[i]] = new_action_value
+
+                visited_states.append([card, dealer_card])
+
+    def check_visited(self, states, card, dealer_card):
+        for state in states:
+            if state[0] == card and state[1] == dealer_card:
+                return False
+        return True
 
     def epsilon_action(self, state):
         epsilon = self.n_zero / (self.n_zero + self.value_steps[state[0]][state[1]])
@@ -99,5 +111,7 @@ class MonteCarloAgent:
         ax = figure.gca(projection=Axes3D.name)
         ax.axes.set_zlim3d(bottom=-0.6, top=1.0)
         ax.plot_trisurf(x.flatten(), y.flatten(), z, cmap='plasma')
+        ax.set_xlabel('Dealer Showing')
+        ax.set_ylabel('Player Sum')
         ax.set_title('Value Surface')
         plt.show()
